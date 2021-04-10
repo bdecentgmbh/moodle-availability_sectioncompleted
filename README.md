@@ -68,8 +68,6 @@ We will do our best to solve your problems, but please note that due to limited 
 Feature proposals
 -----------------
 
-Due to limited resources, the functionality of this plugin is primarily implemented for our own local needs and published as-is to the community. We are aware that members of the community will have other needs and would love to see them solved by this plugin.
-
 Please issue feature proposals on Github:
 https://github.com/stefanscholz/moodle-availability_sectioncomplete/issues
 
