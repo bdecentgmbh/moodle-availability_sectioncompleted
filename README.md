@@ -1,4 +1,4 @@
-moodle-availability_sectioncomplete
+moodle-availability_sectioncompleted
 ========================
 
 Moodle availability plugin which lets users restrict resources, activities and sections based on sections being completed
