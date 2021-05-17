@@ -63,9 +63,8 @@ class frontend extends \core_availability\frontend {
         if (empty($coursesections)) {
             return array();
         }
-          foreach ($coursesections as $section) {
-            if(@$cm->section==$section->id)
-            {
+        foreach ($coursesections as $section) {
+            if (@$cm->section == $section->id) {
                 continue;
             }
             if (!$section->uservisible) {
@@ -81,14 +80,11 @@ class frontend extends \core_availability\frontend {
             } else {
                 $title = $format->get_section_name($section);
             }
-          
-          
             $jsarray[] = (object)array(
                 'id' => $section->id,
                 'name' => $title
             );
-            
-          }
+        }
         return array($jsarray);
     }
 

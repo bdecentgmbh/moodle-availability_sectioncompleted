@@ -42,7 +42,7 @@ class condition extends \core_availability\condition {
     /** @var int ID of role that this condition requires */
      protected $sectionid;
 
-   /**
+    /**
      * Constructor.
      *
      * @param \stdClass $structure Data structure from JSON decode
@@ -54,7 +54,6 @@ class condition extends \core_availability\condition {
             $this->sectionid = 0;
         } else if (is_int($structure->id)) {
             $this->sectionid = $structure->id;
-            
         } else {
             throw new \coding_exception('Invalid ->id for Section completion condition');
         }
@@ -74,33 +73,31 @@ class condition extends \core_availability\condition {
         }
         return $result;
     }
-    
      /**
-     * Returns a JSON object which corresponds to a condition of this type.
-     *
-     * Intended for unit testing, as normally the JSON values are constructed
-     * by JavaScript code.
-     *
-     * @param string $languageid Not required language
-     * @return stdClass Object representing condition
-     */
-    
-      public static function get_json($sectionid = '') {
+      * Returns a JSON object which corresponds to a condition of this type.
+      *
+      * Intended for unit testing, as normally the JSON values are constructed
+      * by JavaScript code.
+      *
+      * @param string $languageid Not required language
+      * @return stdClass Object representing condition
+      */
+    public static function get_json($sectionid = '') {
         return (object)['type' => 'sectioncompleted', 'id' => $sectionid];
     }
 
-    /**
-     * Adding the availability to restored course items.
-     *
-     * @param string       $restoreid
-     * @param int          $courseid
-     * @param \base_logger $logger
-     * @param string       $name
-     *
-     * @return bool
-     * @throws \dml_exception
-     */
-     public function update_after_restore($restoreid, $courseid, \base_logger $logger, $name) {
+      /**
+       * Adding the availability to restored course items.
+       *
+       * @param string       $restoreid
+       * @param int          $courseid
+       * @param \base_logger $logger
+       * @param string       $name
+       *
+       * @return bool
+       * @throws \dml_exception
+       */
+    public function update_after_restore($restoreid, $courseid, \base_logger $logger, $name) {
         return true;
     }
 
@@ -116,41 +113,34 @@ class condition extends \core_availability\condition {
      * @throws \coding_exception
      */
     public function is_available($not, \core_availability\info $info, $grabthelot, $userid) {
-        
-        global $USER, $CFG,$DB;
+        global $USER , $CFG , $DB;
         require_once("{$CFG->libdir}/completionlib.php");
         $context = \context_course::instance($info->get_course()->id);
         $modinfo = $info->get_modinfo();
         $completioninfo = new \completion_info($modinfo->get_course());
-        $allow =true;
-        
-        if($this->sectionid)
-        {
-             $modinfo = get_fast_modinfo($info->get_course());
+        $allow = true;
+        if ($this->sectionid) {
+            $modinfo = get_fast_modinfo($info->get_course());
             $section = $DB->get_record('course_sections', array('id' => $this->sectionid));
-           
-                if(isset($section))
-                {
-                if(isset($modinfo->sections[@$section->section]))
-                {
-              foreach ($modinfo->sections[$section->section] as $modnumber) {
-                 $module = $modinfo->cms[$modnumber];
-                     $completiondata = $completioninfo->get_data($module);
-                     switch ($completiondata->completionstate) {
-                    case COMPLETION_COMPLETE:
-                    case COMPLETION_COMPLETE_FAIL:
-                    case COMPLETION_COMPLETE_PASS:
-                        break;
-                    default:
-                        $allow = false;
+            if (isset($section)) {
+                if (isset($modinfo->sections[@$section->section])) {
+                    foreach ($modinfo->sections[$section->section] as $modnumber) {
+                        $module = $modinfo->cms[$modnumber];
+                        $completiondata = $completioninfo->get_data($module);
+                        switch ($completiondata->completionstate) {
+                            case COMPLETION_COMPLETE:
+                            case COMPLETION_COMPLETE_FAIL:
+                            case COMPLETION_COMPLETE_PASS:
+                            break;
+                            default:
+                                $allow = false;
+                        }
+                    }
                 }
-              }
-              }
-                }
-              if ($not) {
+            }
+            if ($not) {
                 $allow = !$allow;
             }
-             
         }
         return $allow;
     }
@@ -167,25 +157,24 @@ class condition extends \core_availability\condition {
      * @throws \dml_exception
      */
     public function get_description($full, $not, \core_availability\info $info) {
-        
         if ($this->sectionid == '') {
             return '';
         }
-         global $DB;
-        
+        global $DB;
         $format = course_get_format($info->get_course()->id);
-         $section = $DB->get_record('course_sections', array('id' => $this->sectionid));  
-         $title = @$format->get_section_name($section->section);
-         
-            if ($not) {
-                        
-                return get_string('getdescriptionnot', 'availability_sectioncompleted', $title);
-            }
+        $section = $DB->get_record('course_sections', array('id' => $this->sectionid));
+        $title = @$format->get_section_name($section->section);
+        if ($not) {
+            return get_string('getdescriptionnot', 'availability_sectioncompleted', $title);
+        }
             return get_string('getdescription', 'availability_sectioncompleted', $title);
-       
     }
-     
-
+     /**
+      * Checks whether this condition applies to user lists.
+      *
+      * @return bool
+      * @throws \coding_exception
+      */
     public function is_applied_to_user_lists() {
         // Group conditions are assumed to be 'permanent', so they affect the
         // display of user lists for activities.
