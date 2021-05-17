@@ -60,7 +60,7 @@ Bug and problem reports / Support requests
 This plugin is carefully developed and thoroughly tested, but bugs and problems can always appear.
 
 Please report bugs and problems on Github:
-https://github.com/stefanscholz/moodle-availability_sectioncompleted/issues
+https://github.com/bdecentgmbh/moodle-availability_sectioncompleted/issues
 
 We will do our best to solve your problems, but please note that due to limited resources we can't always provide per-case support.
 
@@ -69,10 +69,10 @@ Feature proposals
 -----------------
 
 Please issue feature proposals on Github:
-https://github.com/stefanscholz/moodle-availability_sectioncompleted/issues
+https://github.com/bdecentgmbh/moodle-availability_sectioncompleted/issues
 
 Please create pull requests on Github:
-https://github.com/stefanscholz/moodle-availability_sectioncompleted/pulls
+https://github.com/bdecentgmbh/moodle-availability_sectioncompleted/pulls
 
 We are always interested to read about your feature proposals or even get a pull request from you, but please accept that we can handle your issues only as feature _proposals_ and not as feature _requests_.
 
