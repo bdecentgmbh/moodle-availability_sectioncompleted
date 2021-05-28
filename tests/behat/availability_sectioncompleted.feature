@@ -1,8 +1,8 @@
-@availability @availability_completion
-Feature: availability_completion
-  In order to control student access to activities
+@availability @availability_sectioncompleted
+Feature: availability_sectioncompleted
+  In order to control student access to activities for sections       
   As a teacher
-  I need to set completion conditions which prevent student access
+  I need to set sectioncompleted conditions which prevent student access
 
   Background:
     Given the following "courses" exist:
@@ -23,7 +23,7 @@ Feature: availability_completion
     Given I log in as "teacher1"
     And I am on "Course 1" course homepage with editing mode on
 
-    # Add a Page with a completion tickbox.
+    # Add a Page with a sectioncompleted tickbox.
     And I add a "Page" to section "1" and I fill the form with:
       | Name                | Page 1 |
       | Description         | Test   |
@@ -38,7 +38,7 @@ Feature: availability_completion
       | Page content | Test   |
     And I expand all fieldsets
     And I click on "Add restriction..." "button"
-    And I click on "Activity completion" "button" in the "Add restriction..." "dialogue"
+    And I click on "Activity sectioncompleted" "button" in the "Add restriction..." "dialogue"
     And I click on ".availability-item .availability-eye img" "css_element"
     And I set the field "Activity or resource" to "Page 1"
     And I press "Save and return to course"

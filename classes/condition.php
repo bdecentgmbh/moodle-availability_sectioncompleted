@@ -73,17 +73,17 @@ class condition extends \core_availability\condition {
         }
         return $result;
     }
-     /**
-      * Returns a JSON object which corresponds to a condition of this type.
-      *
-      * Intended for unit testing, as normally the JSON values are constructed
-      * by JavaScript code.
-      *
-      * @param string $languageid Not required language
-      * @return stdClass Object representing condition
-      */
-    public static function get_json($sectionid = '') {
-        return (object)['type' => 'sectioncompleted', 'id' => $sectionid];
+    /**
+     * Returns a JSON object which corresponds to a condition of this type.
+     *
+     * Intended for unit testing, as normally the JSON values are constructed
+     * by JavaScript code.
+     *
+     * @param int $sectionid Required searction id (0 = any group)
+     * @return stdClass Object representing condition
+     */
+    public static function get_json($sectionid = 0) {
+        return (object)['type' => 'sectioncompleted', 'id' => (int)$sectionid];
     }
 
       /**
