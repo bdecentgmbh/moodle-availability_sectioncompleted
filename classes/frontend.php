@@ -79,7 +79,7 @@ class frontend extends \core_availability\frontend {
                     'name' => get_string('previoussection'),
                 ];
             }
-        }  else if ($sectionnum = optional_param('section', 0, PARAM_INT)) {
+        } else if ($sectionnum = optional_param('section', 0, PARAM_INT)) {
             if (isset($coursesections[$sectionnum - 1])) {
                 $presection = $coursesections[$sectionnum - 1];
                 $jsarray[] = (object) [

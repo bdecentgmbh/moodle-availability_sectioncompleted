@@ -48,7 +48,7 @@ class availability_sectioncompleted_testcase extends \advanced_testcase {
 
     /**
      * Tests constructing and using sectioncompleted condition as part of tree.
-     * @covers ::availability_sectioncompleted\condition
+     * @covers ::in_tree
      */
     public function test_in_tree() {
         global $USER;

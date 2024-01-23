@@ -126,14 +126,16 @@ class condition extends \core_availability\condition {
                 if (isset($modinfo->sections[$section->section])) {
                     foreach ($modinfo->sections[$section->section] as $modnumber) {
                         $module = $modinfo->cms[$modnumber];
-                        $completiondata = $completioninfo->get_data($module);
-                        switch ($completiondata->completionstate) {
-                            case COMPLETION_COMPLETE:
-                            case COMPLETION_COMPLETE_FAIL:
-                            case COMPLETION_COMPLETE_PASS:
-                            break;
-                            default:
-                                $allow = false;
+                        if ($completioninfo->is_enabled($module)) {
+                            $completiondata = $completioninfo->get_data($module);
+                            switch ($completiondata->completionstate) {
+                                case COMPLETION_COMPLETE:
+                                case COMPLETION_COMPLETE_FAIL:
+                                case COMPLETION_COMPLETE_PASS:
+                                break;
+                                default:
+                                    $allow = false;
+                            }
                         }
                     }
                 }
