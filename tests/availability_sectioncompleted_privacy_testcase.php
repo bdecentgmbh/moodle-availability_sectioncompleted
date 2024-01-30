@@ -36,8 +36,8 @@ use core_privacy\tests\provider_testcase;
 class availability_sectioncompleted_privacy_testcase extends provider_testcase {
 
     /**
-     * Test returning metadata.
-     * @covers ::get_metadata
+     * Test returning metadata
+     * @return void
      */
     public function test_get_metadata() {
         $collection = new \core_privacy\local\metadata\collection('availability_sectioncompleted');

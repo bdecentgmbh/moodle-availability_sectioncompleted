@@ -49,6 +49,31 @@ Feature: availability_sectioncompleted
     Then I should see "PageName3" in the "region-main" "region"
 
   @javascript
+  Scenario: Section completion for section to an section
+    Given I log in as "teacher1"
+    And I am on "Course 1" course homepage with editing mode on
+    When I edit the section "2"
+    And I expand all fieldsets
+    And I click on "Add restriction..." "button"
+    And I click on "Section completion" "button" in the "Add restriction..." "dialogue"
+    And I set the field "Section completion" to "Topic 1"
+    Then I press "Save changes"
+    Then I log out
+    And I log in as "student1"
+    Then I am on "Course 1" course homepage
+    Then I should see "Not available unless: Topic 1 completed" in the "region-main" "region"
+    Then I should not see "PageName3" in the "region-main" "region"
+    Then I should not see "PageName4" in the "region-main" "region"
+    And I toggle the manual completion state of "PageName1"
+    And the manual completion button of "PageName1" is displayed as "Done"
+    And I toggle the manual completion state of "PageName2"
+    And the manual completion button of "PageName2" is displayed as "Done"
+    Then I reload the page
+    Then I should not see "Not available unless: Topic 1 completed" in the "region-main" "region"
+    Then I should see "PageName3" in the "region-main" "region"
+    Then I should see "PageName4" in the "region-main" "region"
+
+  @javascript
   Scenario: Section completion for previous section to an activity
     Given I am on the PageName3 "page activity editing" page logged in as teacher1
     And I expand all fieldsets
