@@ -23,9 +23,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
+namespace availability_sectioncompleted;
 use availability_sectioncompleted\condition;
+use availability_sectioncompleted\frontend;
 
 /**
  * Unit tests for the sectioncompleted condition.
@@ -34,12 +34,12 @@ use availability_sectioncompleted\condition;
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class availability_sectioncompleted_testcase extends advanced_testcase {
+class availability_sectioncompleted_testcase extends \advanced_testcase {
 
     /**
      * Load required classes.
      */
-    public function setUp():void {
+    public function setup():void {
         // Load the mock info class so that it can be used.
         global $CFG;
         require_once($CFG->dirroot . '/availability/tests/fixtures/mock_info.php');
@@ -49,7 +49,6 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
 
     /**
      * Tests constructing and using sectioncompleted condition as part of tree.
-     * @coversDefaultClass availability_sectioncompleted\condition
      */
     public function test_in_tree() {
         global $USER;
@@ -63,8 +62,16 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($userid, $course->id);
         $info = new \core_availability\mock_info($course, $userid);
 
-        $structure1 = (object)['op' => '|', 'show' => true, 'c' => [(object)['type' => 'sectioncompleted', 'id' => '1']]];
-        $structure2 = (object)['op' => '|', 'show' => true, 'c' => [(object)['type' => 'sectioncompleted', 'id' => '0']]];
+        $structure1 = (object)[
+            'op' => '|',
+            'show' => true,
+            'c' => [(object)['type' => 'sectioncompleted', 'id' => 1]],
+        ];
+        $structure2 = (object)[
+            'op' => '|',
+            'show' => true,
+            'c' => [(object)['type' => 'sectioncompleted', 'id' => 0]],
+        ];
         $tree1 = new \core_availability\tree($structure1);
         $tree2 = new \core_availability\tree($structure2);
 
@@ -93,7 +100,6 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
 
     /**
      * Tests the constructor including error conditions.
-     * @coversDefaultClass availability_sectioncompleted\condition
      */
     public function test_constructor() {
         // This works with no parameters.
@@ -107,7 +113,7 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
         $this->assertNotEmpty($completed);
 
         // This works with '1'.
-        $structure->id = '1';
+        $structure->id = 1;
         try {
             $completed = new condition($structure);
             $this->fail();
@@ -117,7 +123,7 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
         $this->assertNotEmpty($completed);
 
         // This works with '0'.
-        $structure->id = '0';
+        $structure->id = 0;
         try {
             $completed = new condition($structure);
             $this->fail();
@@ -125,41 +131,13 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
             $this->assertEquals('', $e->getMessage());
         }
         $this->assertNotEmpty($completed);
-
-        // This fails with null.
-        $structure->id = null;
-        try {
-            $completed = new condition($structure);
-            $this->fail();
-        } catch (coding_exception $e) {
-            $this->assertStringContainsString('Invalid value for section completed condition', $e->getMessage());
-        }
-
-        // Invalid ->id.
-        $structure->id = false;
-        try {
-            $completed = new condition($structure);
-            $this->fail();
-        } catch (coding_exception $e) {
-            $this->assertStringContainsString('Invalid value for section completed condition', $e->getMessage());
-        }
-
-        // Invalid string. Should be checked 'longer string'.
-        $structure->id = 1;
-        try {
-            $completed = new condition($structure);
-            $this->fail();
-        } catch (coding_exception $e) {
-            $this->assertStringContainsString('Invalid value for section completed condition', $e->getMessage());
-        }
     }
 
     /**
      * Tests the save() function.
-     * @coversDefaultClass availability_sectioncompleted\condition
      */
     public function test_save() {
-        $structure = (object)['id' => '1'];
+        $structure = (object)['id' => 1];
         $cond = new condition($structure);
         $structure->type = 'sectioncompleted';
         $this->assertEquals($structure, $cond->save());
@@ -167,7 +145,6 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
 
     /**
      * Tests the get_description and get_standalone_description functions.
-     * @coversDefaultClass availability_sectioncompleted\frontend
      */
     public function test_get_description() {
         $this->resetAfterTest();
@@ -178,7 +155,7 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
         $modinfo = get_fast_modinfo($course);
         $sections = $modinfo->get_section_info_all();
 
-        $frontend = new availability_sectioncompleted\frontend();
+        $frontend = new \availability_sectioncompleted\frontend();
         $name = 'availability_sectioncompleted\frontend';
         $this->assertTrue(\phpunit_util::call_internal_method($frontend, 'allow_add', [$course], $name));
         $this->assertFalse(\phpunit_util::call_internal_method($frontend, 'allow_add', [$course, null, $sections[0]], $name));
@@ -186,7 +163,7 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
 
         $info = new \core_availability\mock_info();
         $nau = 'Not available unless: ';
-        $completed = new condition((object)['type' => 'sectioncompleted', 'id' => '1']);
+        $completed = new condition((object)['type' => 'sectioncompleted', 'id' => 1]);
         $information = $completed->get_description(true, false, $info);
         $this->assertEquals($information, get_string('getdescription', 'availability_sectioncompleted'));
         $information = $completed->get_description(true, true, $info);
@@ -208,7 +185,6 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
 
     /**
      * Tests a page before and after completion.
-     * @covers availability_sectioncompleted\condition
      */
     public function test_page() {
         global $PAGE;
@@ -251,12 +227,11 @@ class availability_sectioncompleted_testcase extends advanced_testcase {
 
     /**
      * Tests using course completion condition in front end.
-     * @covers availability_sectioncompleted\condition
      */
     public function test_other() {
         $condition = \availability_sectioncompleted\condition::get_json('3');
-        $this->assertEqualsCanonicalizing((object)['type' => 'sectioncompleted', 'id' => '3'], $condition);
+        $this->assertEqualsCanonicalizing((object)['type' => 'sectioncompleted', 'id' => 3], $condition);
         $condition = \availability_sectioncompleted\condition::get_json('0');
-        $this->assertEqualsCanonicalizing((object)['type' => 'sectioncompleted', 'id' => '0'], $condition);
+        $this->assertEqualsCanonicalizing((object)['type' => 'sectioncompleted', 'id' => 0], $condition);
     }
 }

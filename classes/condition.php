@@ -65,7 +65,7 @@ class condition extends \core_availability\condition {
      * @return object|\stdClass $result
      */
     public function save() {
-        $result = (object)array('type' => 'sectioncompleted');
+        $result = (object)['type' => 'sectioncompleted'];
         if ($this->sectionid) {
             $result->id = $this->sectionid;
         } else {
@@ -121,19 +121,21 @@ class condition extends \core_availability\condition {
         $allow = true;
         if ($this->sectionid) {
             $modinfo = get_fast_modinfo($info->get_course());
-            $section = $DB->get_record('course_sections', array('id' => $this->sectionid));
-            if (isset($section)) {
-                if (isset($modinfo->sections[@$section->section])) {
+            $section = $modinfo->get_section_info_by_id($this->sectionid);
+            if (!empty($section)) {
+                if (isset($modinfo->sections[$section->section])) {
                     foreach ($modinfo->sections[$section->section] as $modnumber) {
                         $module = $modinfo->cms[$modnumber];
-                        $completiondata = $completioninfo->get_data($module);
-                        switch ($completiondata->completionstate) {
-                            case COMPLETION_COMPLETE:
-                            case COMPLETION_COMPLETE_FAIL:
-                            case COMPLETION_COMPLETE_PASS:
-                            break;
-                            default:
-                                $allow = false;
+                        if ($completioninfo->is_enabled($module)) {
+                            $completiondata = $completioninfo->get_data($module);
+                            switch ($completiondata->completionstate) {
+                                case COMPLETION_COMPLETE:
+                                case COMPLETION_COMPLETE_FAIL:
+                                case COMPLETION_COMPLETE_PASS:
+                                break;
+                                default:
+                                    $allow = false;
+                            }
                         }
                     }
                 }
@@ -162,23 +164,25 @@ class condition extends \core_availability\condition {
         }
         global $DB;
         $format = course_get_format($info->get_course()->id);
-        $section = $DB->get_record('course_sections', array('id' => $this->sectionid));
+        $section = $DB->get_record('course_sections', ['id' => $this->sectionid]);
         $title = @$format->get_section_name($section->section);
         if ($not) {
             return get_string('getdescriptionnot', 'availability_sectioncompleted', $title);
         }
             return get_string('getdescription', 'availability_sectioncompleted', $title);
     }
-     /**
-      * Checks whether this condition applies to user lists.
-      *
-      * @return bool
-      * @throws \coding_exception
-      */
+
+
+    /**
+     * Checks whether this condition applies to user lists.
+     *
+     * @return bool
+     * @throws \coding_exception
+     */
     public function is_applied_to_user_lists() {
         // Group conditions are assumed to be 'permanent', so they affect the
         // display of user lists for activities.
-        return true;
+        return false;
     }
 
 
@@ -190,4 +194,5 @@ class condition extends \core_availability\condition {
     public function get_debug_string() {
         return $this->sectionid ?? 'any';
     }
+
 }

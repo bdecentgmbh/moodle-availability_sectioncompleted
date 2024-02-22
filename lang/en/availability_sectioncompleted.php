@@ -36,3 +36,4 @@ $string['missing'] = '(Missing section)';
 $string['requires_incomplete'] = 'You have not completed <strong>{$a}</strong>';
 $string['requires_complete'] = 'You have completed <strong>{$a}</strong>';
 $string['privacy:metadata'] = 'The Restriction by other section completion plugin does not store any personal data.';
+$string['previoussection'] = "Previous section";
