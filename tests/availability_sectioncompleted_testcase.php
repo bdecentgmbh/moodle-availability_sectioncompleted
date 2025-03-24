@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 /**
  * Version details
  *
@@ -39,7 +38,7 @@ class availability_sectioncompleted_testcase extends \advanced_testcase {
     /**
      * Load required classes.
      */
-    public function setup():void {
+    public function setup(): void {
         // Load the mock info class so that it can be used.
         global $CFG;
         require_once($CFG->dirroot . '/availability/tests/fixtures/mock_info.php');
