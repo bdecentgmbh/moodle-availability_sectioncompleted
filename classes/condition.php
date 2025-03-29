@@ -113,16 +113,12 @@ class condition extends \core_availability\condition {
      * @throws \coding_exception
      */
     public function is_available($not, \core_availability\info $info, $grabthelot, $userid) {
-        global $PAGE , $CFG , $DB;
+        global $CFG, $DB;
         require_once("{$CFG->libdir}/completionlib.php");
         $context = \context_course::instance($info->get_course()->id);
         $modinfo = $info->get_modinfo();
         $completioninfo = new \completion_info($modinfo->get_course());
         $allow = true;
-
-        if ($PAGE->pagelayout == 'report') {
-            $userid = optional_param('id', 0, PARAM_INT);
-        }
 
         if ($this->sectionid) {
             $modinfo = get_fast_modinfo($info->get_course());
