@@ -117,7 +117,6 @@ class frontend extends \core_availability\frontend {
         return [$jsarray];
     }
 
-
     /**
      * Decides whether this plugin should be available in a given course. The plugin can do this depending on course or
      * system settings. Default returns true.

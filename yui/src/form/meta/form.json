@@ -1,10 +1,10 @@
 {
   "moodle-availability_sectioncompleted-form": {
     "requires": [
-        "base",
-        "node",
-        "event",
-        "moodle-core_availability-form"
+      "base",
+      "node",
+      "event",
+      "moodle-core_availability-form"
     ]
   }
 }

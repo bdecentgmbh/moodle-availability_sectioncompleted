@@ -113,21 +113,29 @@ class condition extends \core_availability\condition {
      * @throws \coding_exception
      */
     public function is_available($not, \core_availability\info $info, $grabthelot, $userid) {
-        global $USER , $CFG , $DB;
+        global $CFG, $DB;
         require_once("{$CFG->libdir}/completionlib.php");
         $context = \context_course::instance($info->get_course()->id);
         $modinfo = $info->get_modinfo();
         $completioninfo = new \completion_info($modinfo->get_course());
         $allow = true;
+
         if ($this->sectionid) {
             $modinfo = get_fast_modinfo($info->get_course());
-            $section = $modinfo->get_section_info_by_id($this->sectionid);
+
+            if (method_exists($modinfo, 'get_section_info_by_id')) {
+                $section = $modinfo->get_section_info_by_id($this->sectionid);
+            } else {
+                $section = $DB->get_record('course_sections', ['course' => $info->get_course()->id,
+                    'id' => $this->sectionid], '*', MUST_EXIST);
+            }
+
             if (!empty($section)) {
                 if (isset($modinfo->sections[$section->section])) {
                     foreach ($modinfo->sections[$section->section] as $modnumber) {
                         $module = $modinfo->cms[$modnumber];
                         if ($completioninfo->is_enabled($module)) {
-                            $completiondata = $completioninfo->get_data($module);
+                            $completiondata = $completioninfo->get_data($module, false, $userid);
                             switch ($completiondata->completionstate) {
                                 case COMPLETION_COMPLETE:
                                 case COMPLETION_COMPLETE_FAIL:
@@ -172,7 +180,6 @@ class condition extends \core_availability\condition {
             return get_string('getdescription', 'availability_sectioncompleted', $title);
     }
 
-
     /**
      * Checks whether this condition applies to user lists.
      *
@@ -184,7 +191,6 @@ class condition extends \core_availability\condition {
         // display of user lists for activities.
         return false;
     }
-
 
     /**
      * Retrieve debugging string.

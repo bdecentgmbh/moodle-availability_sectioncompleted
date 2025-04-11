@@ -17,17 +17,17 @@ M.availability_sectioncompleted.form.roles = null;
  * @method initInner
  * @param {Array} roles Array of objects containing roleid => name
  */
-M.availability_sectioncompleted.form.initInner = function(roles) {
+M.availability_sectioncompleted.form.initInner = function (roles) {
     this.roles = roles;
 };
 
-M.availability_sectioncompleted.form.getNode = function(json) {
+M.availability_sectioncompleted.form.getNode = function (json) {
     // Create HTML structure.
     var html = '<label>' + M.util.get_string('title', 'availability_sectioncompleted') + ' ' +
-            '<span class="availability-group">' +
-            '<select name="id">' +
-            '<option value="choose">' + M.util.get_string('choosedots', 'moodle') + '</option>';
-    Y.each(this.roles, function(role) {
+        '<span class="availability-group">' +
+        '<select name="id">' +
+        '<option value="choose">' + M.util.get_string('choosedots', 'moodle') + '</option>';
+    Y.each(this.roles, function (role) {
         html += '<option value="' + role.id + '">' + role.name + '</option>';
     });
     html += '</select></span></label>';
@@ -35,7 +35,7 @@ M.availability_sectioncompleted.form.getNode = function(json) {
 
     // Set initial value if specified.
     if (json.id !== undefined &&
-            node.one('select[name=id] > option[value=' + json.id + ']')) {
+        node.one('select[name=id] > option[value=' + json.id + ']')) {
         node.one('select[name=id]').set('value', '' + json.id);
     }
 
@@ -43,7 +43,7 @@ M.availability_sectioncompleted.form.getNode = function(json) {
     if (!M.availability_sectioncompleted.form.addedEvents) {
         M.availability_sectioncompleted.form.addedEvents = true;
         var root = Y.one('.availability-field');
-        root.delegate('change', function() {
+        root.delegate('change', function () {
             // Just update the form fields.
             M.core_availability.form.update();
         }, '.availability_sectioncompleted select');
@@ -52,7 +52,7 @@ M.availability_sectioncompleted.form.getNode = function(json) {
     return node;
 };
 
-M.availability_sectioncompleted.form.fillValue = function(value, node) {
+M.availability_sectioncompleted.form.fillValue = function (value, node) {
     var selected = node.one('select[name=id]').get('value');
     if (selected === 'choose') {
         value.id = 'choose';
@@ -61,7 +61,7 @@ M.availability_sectioncompleted.form.fillValue = function(value, node) {
     }
 };
 
-M.availability_sectioncompleted.form.fillErrors = function(errors, node) {
+M.availability_sectioncompleted.form.fillErrors = function (errors, node) {
     var value = {};
     this.fillValue(value, node);
 

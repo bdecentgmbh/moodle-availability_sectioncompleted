@@ -22,6 +22,11 @@ Feature: availability_sectioncompleted
       | page     | PageName2 | PageDesc2 | 1           | C1     | Page 2  | 1             | 2        |    1    |    1      |
       | page     | PageName3 | PageDesc3 | 1           | C1     | Page 3  | 1             | 3        |    2    |    1      |
       | page     | PageName4 | PageDesc4 | 1           | C1     | Page 4  | 1             | 4        |    2    |    1      |
+    And I log in as "admin"
+    And I am on "Course 1" course homepage with editing mode on
+    When I edit the section "1"
+    And I set the section "Topic 1" name
+    And I press "Save changes"
 
   @javascript
   Scenario: Section completion test condition
@@ -41,10 +46,11 @@ Feature: availability_sectioncompleted
     Then I should not see "PageName3" in the "region-main" "region"
 
     # Mark PageName1 complete
-    And I toggle the manual completion state of "PageName1"
-    And the manual completion button of "PageName1" is displayed as "Done"
-    And I toggle the manual completion state of "PageName2"
-    And the manual completion button of "PageName2" is displayed as "Done"
+    And I am on the "PageName1" "page activity" page
+    And Toggle the manual completion state of the "PageName1" activity
+    And I am on the "PageName2" "page activity" page
+    And Toggle the manual completion state of the "PageName2" activity
+    Then I am on "Course 1" course homepage
     Then I reload the page
     Then I should see "PageName3" in the "region-main" "region"
 
@@ -64,10 +70,15 @@ Feature: availability_sectioncompleted
     Then I should see "Not available unless: Topic 1 completed" in the "region-main" "region"
     Then I should not see "PageName3" in the "region-main" "region"
     Then I should not see "PageName4" in the "region-main" "region"
-    And I toggle the manual completion state of "PageName1"
-    And the manual completion button of "PageName1" is displayed as "Done"
-    And I toggle the manual completion state of "PageName2"
-    And the manual completion button of "PageName2" is displayed as "Done"
+    And I am on the "PageName1" "page activity" page
+    And Toggle the manual completion state of the "PageName1" activity
+    # # And I toggle the manual completion state of "PageName1"
+    # And the manual completion button of "PageName1" is displayed as "Done"
+    And I am on the "PageName2" "page activity" page
+    And Toggle the manual completion state of the "PageName2" activity
+    # And I toggle the manual completion state of "PageName2"
+    # And the manual completion button of "PageName2" is displayed as "Done"
+    Then I am on "Course 1" course homepage
     Then I reload the page
     Then I should not see "Not available unless: Topic 1 completed" in the "region-main" "region"
     Then I should see "PageName3" in the "region-main" "region"
@@ -85,10 +96,11 @@ Feature: availability_sectioncompleted
     And I log in as "student1"
     Then I am on "Course 1" course homepage
     Then I should see "Not available unless: Topic 1 completed" in the "region-main" "region"
-    And I toggle the manual completion state of "PageName1"
-    And the manual completion button of "PageName1" is displayed as "Done"
-    And I toggle the manual completion state of "PageName2"
-    And the manual completion button of "PageName2" is displayed as "Done"
+    And I am on the "PageName1" "page activity" page
+    And Toggle the manual completion state of the "PageName1" activity
+    And I am on the "PageName2" "page activity" page
+    And Toggle the manual completion state of the "PageName2" activity
+    Then I am on "Course 1" course homepage
     Then I reload the page
     Then I should not see "Not available unless: Topic 1 completed" in the "region-main" "region"
 
@@ -108,10 +120,11 @@ Feature: availability_sectioncompleted
     Then I should see "Not available unless: Topic 1 completed" in the "region-main" "region"
     Then I should not see "PageName3" in the "region-main" "region"
     Then I should not see "PageName4" in the "region-main" "region"
-    And I toggle the manual completion state of "PageName1"
-    And the manual completion button of "PageName1" is displayed as "Done"
-    And I toggle the manual completion state of "PageName2"
-    And the manual completion button of "PageName2" is displayed as "Done"
+    And I am on the "PageName1" "page activity" page
+    And Toggle the manual completion state of the "PageName1" activity
+    And I am on the "PageName2" "page activity" page
+    And Toggle the manual completion state of the "PageName2" activity
+    Then I am on "Course 1" course homepage
     Then I reload the page
     Then I should not see "Not available unless: Topic 1 completed" in the "region-main" "region"
     Then I should see "PageName3" in the "region-main" "region"

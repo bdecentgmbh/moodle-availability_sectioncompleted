@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 /**
  * Version details
  *
@@ -25,15 +24,15 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['pluginname'] = 'Restriction by other section completion';
-$string['title'] = 'Section completion';
-$string['getdescriptionnot'] = '{$a} not completed.';
-$string['getdescription'] = '{$a} completed.';
-$string['error_selectsectioncompleted'] = 'Select section';
 $string['description'] = 'Require students to complete (or not complete) the specified section.';
 $string['error_selectcmid'] = 'You must select a section for the completion condition.';
+$string['error_selectsectioncompleted'] = 'Select section';
+$string['getdescription'] = '{$a} completed.';
+$string['getdescriptionnot'] = '{$a} not completed.';
 $string['missing'] = '(Missing section)';
-$string['requires_incomplete'] = 'You have not completed <strong>{$a}</strong>';
-$string['requires_complete'] = 'You have completed <strong>{$a}</strong>';
-$string['privacy:metadata'] = 'The Restriction by other section completion plugin does not store any personal data.';
+$string['pluginname'] = 'Restriction by other section completion';
 $string['previoussection'] = "Previous section";
+$string['privacy:metadata'] = 'The Restriction by other section completion plugin does not store any personal data.';
+$string['requires_complete'] = 'You have completed <strong>{$a}</strong>';
+$string['requires_incomplete'] = 'You have not completed <strong>{$a}</strong>';
+$string['title'] = 'Section completion';
