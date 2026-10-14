@@ -47,6 +47,17 @@ Students who do not meet the restriction see how many activities count so far, f
 If you want to learn more about using availability plugins in Moodle, please see https://docs.moodle.org/en/Restrict_access.
 
 
+Documentation
+-------------
+
+* [Teacher guide](docs/teacher-guide.md): adding the restriction, what counts and what learners see.
+* [Student guide](docs/student-guide.md): what the restriction message means.
+* [Administrator guide](docs/admin-guide.md): requirements, installation, upgrading from 1.1, performance and privacy.
+* [Developer guide](docs/developer-guide.md): the restriction's JSON and how it is evaluated.
+
+The guides follow the conventions of the Documentation Center (tool_mdocs), which shows each of them on the pages where its readers use the restriction.
+
+
 Theme support
 -------------
 
