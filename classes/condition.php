@@ -121,8 +121,6 @@ class condition extends \core_availability\condition {
         $allow = true;
 
         if ($this->sectionid) {
-            $modinfo = get_fast_modinfo($info->get_course());
-
             if (method_exists($modinfo, 'get_section_info_by_id')) {
                 $section = $modinfo->get_section_info_by_id($this->sectionid);
             } else {
