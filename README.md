@@ -40,6 +40,8 @@ Teachers (and other users with editing rights) can add the "Section completion" 
 
 The activities in a section's subsections count for that section. A subsection on its own only counts its own activities. A section without completion-tracked activities, or a section that was deleted, does not restrict anything.
 
+Hidden activities count too. Students cannot complete an activity they cannot see, so hiding a completion-tracked activity keeps an "all activities" restriction from being met: remove its completion tracking, or require at least a number of activities, instead.
+
 Students who do not meet the restriction see how many activities count so far, for example "Section 1 completed. (1 of 3 so far)". When they mark an activity of the section as done, the course page reloads, so that what it unlocks shows up.
 
 If you want to learn more about using availability plugins in Moodle, please see https://docs.moodle.org/en/Restrict_access.
@@ -91,6 +93,18 @@ Moodle release support
 This plugin is maintained for the two most recent major releases of Moodle as well as the most recent LTS release of Moodle. Changes between releases are listed in [CHANGES.md](CHANGES.md).
 
 If you are running a legacy version of Moodle, but want or need to run the latest version of this plugin, you can get the latest version of the plugin, remove the line starting with $plugin->requires from version.php and use this latest plugin version then on your legacy Moodle. However, please note that you will run this setup completely at your own risk. We can't support this approach in any way and there is an undeniable risk for erratic behavior.
+
+
+Releasing this plugin
+---------------------
+
+Releases are published from GitHub Actions (.github/workflows/moodle-release.yml) with Moodle HQ's release workflow:
+
+1. Changes are merged into dev, then dev into main with a merge commit. version.php and the CHANGES.md section "## <release> (<version>)" must be updated.
+2. Push a tag "v" followed by $plugin->release on the merge commit, for example v1.2. The workflow checks the tag, waits for Moodle Plugin CI on that commit, publishes the version with the CHANGES.md section as release notes to the Moodle Marketplace and creates the GitHub Release with the ZIP.
+3. Actions › Release to Moodle Marketplace › Run workflow repeats a release or, with "Only check", runs the checks without publishing.
+
+The repository secret MOODLE_MARKETPLACE_TOKEN holds an API token created by a maintainer of the plugin at https://marketplace.moodle.com/account/security.
 
 
 Translating this plugin
