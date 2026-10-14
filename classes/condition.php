@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Condition class.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
@@ -24,23 +24,42 @@
 
 namespace availability_sectioncompleted;
 
-use core_availability\info;
-use core_availability\info_module;
-use core_availability\info_section;
-
 defined('MOODLE_INTERNAL') || die();
+
 require_once($CFG->libdir . '/completionlib.php');
 
 /**
- * Availability role - Condition class
+ * Restriction by the completion of the activities in another section.
+ *
+ * The JSON structure is {type: 'sectioncompleted', id: section id, e: required state, m: minimum number}.
+ * The state 'e' and the minimum 'm' are optional; conditions saved before 1.2 have neither and mean
+ * "every completion-tracked activity of the section is complete, passed or failed".
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class condition extends \core_availability\condition {
-    /** @var int ID of role that this condition requires */
-     protected $sectionid;
+    /** An activity counts when it is complete, passed or failed. */
+    const STATE_COMPLETE = 'complete';
+
+    /** An activity counts when it is complete with a pass grade (COMPLETION_COMPLETE_PASS). */
+    const STATE_PASS = 'pass';
+
+    /** An activity counts when it is complete with a fail grade (COMPLETION_COMPLETE_FAIL). */
+    const STATE_FAIL = 'fail';
+
+    /** @var int ID of the section (course_sections.id) whose activities count, 0 if none. */
+    protected $sectionid;
+
+    /** @var string Completion state an activity needs to count, one of the STATE_ constants. */
+    protected $state;
+
+    /** @var int Number of activities that must count, 0 for all of them. */
+    protected $min;
+
+    /** @var int[]|null Counted and tracked activities of the last is_available() call, for the description. */
+    protected $progress = null;
 
     /**
      * Constructor.
@@ -49,154 +68,317 @@ class condition extends \core_availability\condition {
      * @throws \coding_exception If invalid data structure.
      */
     public function __construct($structure) {
-        // Get section id.
         if (!property_exists($structure, 'id')) {
             $this->sectionid = 0;
         } else if (is_int($structure->id)) {
             $this->sectionid = $structure->id;
         } else {
-            throw new \coding_exception('Invalid ->id for Section completion condition');
+            throw new \coding_exception('Invalid ->id for section completion condition');
+        }
+
+        if (!property_exists($structure, 'e')) {
+            $this->state = self::STATE_COMPLETE;
+        } else if (in_array($structure->e, [self::STATE_COMPLETE, self::STATE_PASS, self::STATE_FAIL], true)) {
+            $this->state = $structure->e;
+        } else {
+            throw new \coding_exception('Invalid ->e for section completion condition');
+        }
+
+        if (!property_exists($structure, 'm')) {
+            $this->min = 0;
+        } else if (is_int($structure->m) && $structure->m >= 0) {
+            $this->min = $structure->m;
+        } else {
+            throw new \coding_exception('Invalid ->m for section completion condition');
         }
     }
 
     /**
-     * Save.
+     * Saves the condition to a data structure.
      *
-     * @return object|\stdClass $result
+     * @return \stdClass Structure object (ready to be made into JSON format)
      */
     public function save() {
-        $result = (object)['type' => 'sectioncompleted'];
-        if ($this->sectionid) {
-            $result->id = $this->sectionid;
-        } else {
-            $result->activity = true;
-        }
-        return $result;
+        return (object)['type' => 'sectioncompleted', 'id' => $this->sectionid, 'e' => $this->state, 'm' => $this->min];
     }
+
     /**
      * Returns a JSON object which corresponds to a condition of this type.
      *
      * Intended for unit testing, as normally the JSON values are constructed
      * by JavaScript code.
      *
-     * @param int $sectionid Required searction id (0 = any group)
-     * @return stdClass Object representing condition
+     * @param int $sectionid ID of the section whose activities count
+     * @param string $state Completion state an activity needs to count, one of the STATE_ constants
+     * @param int $min Number of activities that must count, 0 for all of them
+     * @return \stdClass Object representing condition
      */
-    public static function get_json($sectionid = 0) {
-        return (object)['type' => 'sectioncompleted', 'id' => (int)$sectionid];
+    public static function get_json($sectionid, $state = self::STATE_COMPLETE, $min = 0) {
+        return (object)['type' => 'sectioncompleted', 'id' => (int)$sectionid, 'e' => $state, 'm' => (int)$min];
     }
 
-      /**
-       * Adding the availability to restored course items.
-       *
-       * @param string       $restoreid
-       * @param int          $courseid
-       * @param \base_logger $logger
-       * @param string       $name
-       *
-       * @return bool
-       * @throws \dml_exception
-       */
+    /**
+     * Points the condition to the restored section.
+     *
+     * When the section was not restored but belongs to the target course (an activity duplicated
+     * or imported within the course), the condition keeps it. Otherwise the condition loses its
+     * section, like core conditions on activities that were not restored.
+     *
+     * @param string $restoreid Restore identifier
+     * @param int $courseid Target course id
+     * @param \base_logger $logger Logger for any warnings
+     * @param string $name Name of the restored item
+     * @return bool True if the condition changed
+     */
     public function update_after_restore($restoreid, $courseid, \base_logger $logger, $name) {
+        global $DB;
+
+        if (!$this->sectionid) {
+            return false;
+        }
+        $rec = \restore_dbops::get_backup_ids_record($restoreid, 'course_section', $this->sectionid);
+        if ($rec && $rec->newitemid) {
+            $this->sectionid = (int)$rec->newitemid;
+            return true;
+        }
+        if ($DB->record_exists('course_sections', ['id' => $this->sectionid, 'course' => $courseid])) {
+            return false;
+        }
+        $this->sectionid = 0;
+        $logger->process(
+            'Restored item (' . $name . ') has availability condition on a section that was not restored',
+            \backup::LOG_WARNING
+        );
         return true;
     }
 
     /**
-     * Check if the item is available with this restriction.
+     * Determines whether the user meets the condition.
      *
-     * @param bool                    $not
-     * @param \core_availability\info $info
-     * @param bool                    $grabthelot
-     * @param int                     $userid
+     * Uses only the modinfo of the user being checked ($info->get_modinfo()): loading the
+     * modinfo of the current user here rebuilds the course cache for every checked user (#14).
      *
-     * @return bool
-     * @throws \coding_exception
+     * @param bool $not Set true if we are inverting the condition
+     * @param \core_availability\info $info Item we're checking
+     * @param bool $grabthelot Performance hint: if true, caches information required for all course-modules
+     * @param int $userid User ID to check availability for
+     * @return bool True if available
      */
     public function is_available($not, \core_availability\info $info, $grabthelot, $userid) {
-        global $CFG, $DB;
-        require_once("{$CFG->libdir}/completionlib.php");
-        $context = \context_course::instance($info->get_course()->id);
+        $this->progress = null;
         $modinfo = $info->get_modinfo();
-        $completioninfo = new \completion_info($modinfo->get_course());
-        $allow = true;
+        $section = $this->sectionid ? $modinfo->get_section_info_by_id($this->sectionid) : null;
+        if (!$section) {
+            // A condition on a missing section does not restrict anything.
+            return true;
+        }
 
-        if ($this->sectionid) {
-            if (method_exists($modinfo, 'get_section_info_by_id')) {
-                $section = $modinfo->get_section_info_by_id($this->sectionid);
-            } else {
-                $section = $DB->get_record('course_sections', ['course' => $info->get_course()->id,
-                    'id' => $this->sectionid], '*', MUST_EXIST);
-            }
-
-            if (!empty($section)) {
-                if (isset($modinfo->sections[$section->section])) {
-                    foreach ($modinfo->sections[$section->section] as $modnumber) {
-                        $module = $modinfo->cms[$modnumber];
-                        if ($completioninfo->is_enabled($module)) {
-                            $completiondata = $completioninfo->get_data($module, false, $userid);
-                            switch ($completiondata->completionstate) {
-                                case COMPLETION_COMPLETE:
-                                case COMPLETION_COMPLETE_FAIL:
-                                case COMPLETION_COMPLETE_PASS:
-                                break;
-                                default:
-                                    $allow = false;
-                            }
-                        }
-                    }
-                }
-            }
-            if ($not) {
-                $allow = !$allow;
+        $completion = new \completion_info($modinfo->get_course());
+        $tracked = self::get_tracked_cms($modinfo, $section, $completion);
+        $count = 0;
+        foreach ($tracked as $cm) {
+            if ($this->counts($completion->get_data($cm, $grabthelot, $userid)->completionstate)) {
+                $count++;
             }
         }
-        return $allow;
+        $this->progress = [$count, count($tracked)];
+
+        // A minimum above the number of tracked activities means all of them.
+        $required = $this->min ? min($this->min, count($tracked)) : count($tracked);
+        $allow = $count >= $required;
+        return $not ? !$allow : $allow;
     }
 
     /**
-     * Retrieve the description for the restriction.
+     * Whether an activity with this completion state counts towards the condition.
      *
-     * @param bool                    $full
-     * @param bool                    $not
-     * @param \core_availability\info $info
+     * @param int $completionstate One of the COMPLETION_ constants
+     * @return bool
+     */
+    protected function counts(int $completionstate): bool {
+        switch ($this->state) {
+            case self::STATE_PASS:
+                return $completionstate === COMPLETION_COMPLETE_PASS;
+            case self::STATE_FAIL:
+                return $completionstate === COMPLETION_COMPLETE_FAIL;
+            default:
+                return in_array($completionstate, [COMPLETION_COMPLETE, COMPLETION_COMPLETE_PASS, COMPLETION_COMPLETE_FAIL], true);
+        }
+    }
+
+    /**
+     * Obtains a string describing this restriction.
      *
-     * @return string
-     * @throws \coding_exception
-     * @throws \dml_exception
+     * The section name is a placeholder that core replaces when the text is displayed. For a
+     * user who does not meet the condition, the text ends with how many activities count so far.
+     *
+     * @param bool $full Set true if this is the 'full information' view
+     * @param bool $not Set true if we are inverting the condition
+     * @param \core_availability\info $info Item we're checking
+     * @return string Information string (for admin) about all restrictions on this item
      */
     public function get_description($full, $not, \core_availability\info $info) {
-        if ($this->sectionid == '') {
-            return '';
+        $section = $this->description_callback([$this->sectionid]);
+        $key = 'getdescription' . ($not ? 'not' : '') . ($this->state === self::STATE_COMPLETE ? '' : '_' . $this->state);
+        if ($this->min) {
+            $description = get_string(
+                $key . '_min',
+                'availability_sectioncompleted',
+                (object)['section' => $section, 'min' => $this->min]
+            );
+        } else {
+            $description = get_string($key, 'availability_sectioncompleted', $section);
         }
-        global $DB;
-        $format = course_get_format($info->get_course()->id);
-        $section = $DB->get_record('course_sections', ['id' => $this->sectionid]);
-        $title = @$format->get_section_name($section->section);
-        if ($not) {
-            return get_string('getdescriptionnot', 'availability_sectioncompleted', $title);
+
+        if (!$full && !$not && $this->progress && $this->progress[1]) {
+            $description .= ' ' . get_string(
+                'progress',
+                'availability_sectioncompleted',
+                (object)['count' => $this->progress[0], 'total' => $this->progress[1]]
+            );
         }
-            return get_string('getdescription', 'availability_sectioncompleted', $title);
+        return $description;
     }
 
     /**
-     * Checks whether this condition applies to user lists.
+     * Gets the section name when the description is displayed.
      *
-     * @return bool
-     * @throws \coding_exception
+     * @param \course_modinfo $modinfo Modinfo
+     * @param \context $context Context
+     * @param string[] $params Parameters (just the section id)
+     * @return string Section name
+     */
+    public static function get_description_callback_value(\course_modinfo $modinfo, \context $context, array $params): string {
+        if (count($params) !== 1 || !is_number($params[0])) {
+            return '<!-- Invalid section completion description callback -->';
+        }
+        $section = $params[0] ? $modinfo->get_section_info_by_id((int)$params[0]) : null;
+        if (!$section) {
+            return get_string('missing', 'availability_sectioncompleted');
+        }
+        return self::get_section_title($modinfo, $section);
+    }
+
+    /**
+     * Obtains a representation of the options of this condition as a string, for debugging.
+     *
+     * @return string Text representation of parameters
+     */
+    protected function get_debug_string() {
+        return '#' . $this->sectionid . ' ' . $this->state . ($this->min ? ' >= ' . $this->min : '');
+    }
+
+    /**
+     * Completion depends on the user's progress, so the condition does not filter user lists.
+     *
+     * @return bool False
      */
     public function is_applied_to_user_lists() {
-        // Group conditions are assumed to be 'permanent', so they affect the
-        // display of user lists for activities.
         return false;
     }
 
     /**
-     * Retrieve debugging string.
+     * Gets the completion-tracked activities that count for a section.
      *
-     * @return string
+     * These are the section's own activities and, unless the section is itself a subsection,
+     * the activities of its subsections. Only modinfo data is used, so this is safe while the
+     * availability of another user is checked.
+     *
+     * @param \course_modinfo $modinfo Modinfo of the course
+     * @param \section_info $section The section
+     * @param \completion_info $completion Completion info of the course
+     * @return \cm_info[] The activities
      */
-    public function get_debug_string() {
-        return $this->sectionid ?? 'any';
+    public static function get_tracked_cms(
+        \course_modinfo $modinfo,
+        \section_info $section,
+        \completion_info $completion
+    ): array {
+        $tracked = [];
+        foreach (self::get_section_cms($modinfo, $section) as $cm) {
+            if ($completion->is_enabled($cm)) {
+                $tracked[] = $cm;
+            }
+            if (empty($section->component) && ($subsection = self::get_subsection($modinfo, $cm))) {
+                foreach (self::get_section_cms($modinfo, $subsection) as $subcm) {
+                    if ($completion->is_enabled($subcm)) {
+                        $tracked[] = $subcm;
+                    }
+                }
+            }
+        }
+        return $tracked;
     }
 
+    /**
+     * Gets the activities of a section that are not being deleted.
+     *
+     * @param \course_modinfo $modinfo Modinfo of the course
+     * @param \section_info $section The section
+     * @return \cm_info[] The activities in course order
+     */
+    protected static function get_section_cms(\course_modinfo $modinfo, \section_info $section): array {
+        $cms = [];
+        foreach ($modinfo->sections[$section->section] ?? [] as $cmid) {
+            $cm = $modinfo->cms[$cmid] ?? null;
+            if ($cm && !$cm->deletioninprogress) {
+                $cms[] = $cm;
+            }
+        }
+        return $cms;
+    }
+
+    /**
+     * Gets the subsection an activity delegates, such as the section of a Subsection activity.
+     *
+     * @param \course_modinfo $modinfo Modinfo of the course
+     * @param \cm_info $cm The activity
+     * @return \section_info|null The delegated section, or null
+     */
+    public static function get_subsection(\course_modinfo $modinfo, \cm_info $cm): ?\section_info {
+        return $modinfo->get_section_info_by_component('mod_' . $cm->modname, $cm->instance);
+    }
+
+    /**
+     * Gets the section that contains a subsection.
+     *
+     * @param \course_modinfo $modinfo Modinfo of the course
+     * @param \section_info $section The section
+     * @return \section_info|null The parent section, or null when the section is not a subsection
+     */
+    public static function get_parent_section(\course_modinfo $modinfo, \section_info $section): ?\section_info {
+        if (empty($section->component) || strpos($section->component, 'mod_') !== 0) {
+            return null;
+        }
+        $cm = $modinfo->get_instances_of(substr($section->component, 4))[$section->itemid] ?? null;
+        return $cm ? $modinfo->get_section_info($cm->sectionnum) : null;
+    }
+
+    /**
+     * Gets the formatted name of a section, prefixed with its parent section for a subsection.
+     *
+     * @param \course_modinfo $modinfo Modinfo of the course
+     * @param \section_info $section The section
+     * @return string Name, safe to put into HTML
+     */
+    public static function get_section_title(\course_modinfo $modinfo, \section_info $section): string {
+        $format = course_get_format($modinfo->get_course());
+        $context = \context_course::instance($modinfo->get_course_id());
+        $name = function (\section_info $section) use ($format, $context): string {
+            if ((string)$section->name !== '') {
+                return format_string($section->name, true, ['context' => $context]);
+            }
+            return $format->get_section_name($section);
+        };
+
+        $parent = self::get_parent_section($modinfo, $section);
+        if (!$parent) {
+            return $name($section);
+        }
+        return get_string(
+            'subsectiontitle',
+            'availability_sectioncompleted',
+            (object)['section' => $name($parent), 'subsection' => $name($section)]
+        );
+    }
 }
