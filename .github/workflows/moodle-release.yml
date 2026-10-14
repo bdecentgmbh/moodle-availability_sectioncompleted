@@ -3,9 +3,9 @@ name: Release to Moodle Marketplace
 # Publishes a tagged version to the Moodle Marketplace (https://marketplace.moodle.com/) and
 # creates the matching GitHub Release with the ZIP.
 #
-# Release: merge dev into main, then push a tag "v<release>" on main, e.g. v1.2 for
-# $plugin->release = '1.2'. Re-run or dry-run: Actions > Release to Moodle Marketplace >
-# Run workflow, with the tag. A dry run does every check and skips the publishing.
+# Release: merge dev into main, then push a tag "v<release>" or "v<release>-r<n>" on main, e.g.
+# v1.2 or v1.2-r1 for $plugin->release = '1.2'. Re-run or dry-run: Actions > Release to Moodle
+# Marketplace > Run workflow, with the tag. A dry run does every check and skips the publishing.
 #
 # Before anything is published, the tag must be on main, match $plugin->release in version.php
 # and have a section "## <release> (<version>)" in CHANGES.md, and "Moodle Plugin CI" must have
@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v1.2)'
+        description: 'Tag to release (e.g. v1.2-r1)'
         required: true
       dry_run:
         description: 'Only check, do not publish'
@@ -65,8 +65,14 @@ jobs:
           VERSIONPHP='define("MOODLE_INTERNAL", 1); define("MATURITY_STABLE", 200); $plugin = new stdClass(); include "version.php";'
           RELEASE=$(php -r "${VERSIONPHP} echo \$plugin->release;")
           VERSION=$(php -r "${VERSIONPHP} echo \$plugin->version;")
-          if [ "v${RELEASE}" != "${TAG}" ]; then
-            echo "::error::Tag ${TAG} does not match \$plugin->release '${RELEASE}' in version.php (expected v${RELEASE})."
+          # v<release> or v<release>-r<n>, e.g. v1.2 or v1.2-r1.
+          if [[ "${TAG}" =~ ^v(.+)-r[0-9]+$ ]]; then
+            TAGRELEASE="${BASH_REMATCH[1]}"
+          else
+            TAGRELEASE="${TAG#v}"
+          fi
+          if [ "${TAG:0:1}" != "v" ] || [ "${TAGRELEASE}" != "${RELEASE}" ]; then
+            echo "::error::Tag ${TAG} does not match \$plugin->release '${RELEASE}' in version.php (expected v${RELEASE} or v${RELEASE}-r<n>)."
             exit 1
           fi
           if ! git merge-base --is-ancestor "${TAG}^{commit}" origin/main; then
