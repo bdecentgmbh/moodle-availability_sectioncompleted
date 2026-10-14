@@ -51,6 +51,7 @@ final class condition_test extends \advanced_testcase {
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
+        condition::wipe_static_cache();
         set_config('enableavailability', 1);
         set_config('enablecompletion', 1);
 
@@ -107,7 +108,9 @@ final class condition_test extends \advanced_testcase {
         $condition = new condition((object)['id' => 12, 'e' => condition::STATE_PASS, 'm' => 2]);
         $this->assertSame('{sectioncompleted:#12 pass >= 2}', (string)$condition);
 
-        foreach ([['id' => '12'], ['id' => 12, 'e' => 'done'], ['id' => 12, 'm' => -1], ['id' => 12, 'm' => '2']] as $structure) {
+        $invalid = [['id' => '12'], ['id' => 12, 'e' => 'done'], ['id' => 12, 'm' => -1], ['id' => 12, 'm' => '2'],
+            ['id' => 12, 'm' => condition::MAX_MIN + 1]];
+        foreach ($invalid as $structure) {
             try {
                 new condition((object)$structure);
                 $this->fail('Expected a coding exception for ' . json_encode($structure));
@@ -180,10 +183,39 @@ final class condition_test extends \advanced_testcase {
         $this->assertTrue($this->available($ten));
     }
 
+    /**
+     * Resetting completion keeps the viewed record, so core returns a completion record without state.
+     */
+    public function test_is_available_viewed_without_completion_record(): void {
+        global $DB;
+        $DB->insert_record('course_modules_viewed', (object)['coursemoduleid' => $this->pages[0],
+            'userid' => $this->student->id, 'timecreated' => time()]);
+        $json = condition::get_json($this->section(1)->id, condition::STATE_COMPLETE, 1);
+
+        $this->setUser($this->getDataGenerator()->create_and_enrol($this->course, 'editingteacher'));
+        $this->assertFalse($this->available($json));
+
+        $this->setUser($this->student);
+        $condition = new condition($json);
+        $info = new mock_info($this->course, $this->student->id);
+        $this->assertFalse($condition->is_available(false, $info, false, $this->student->id));
+    }
+
+    public function test_is_available_current_user(): void {
+        // The current user's states come from the completion cache instead of a query.
+        $this->setUser($this->student);
+        $pass = condition::get_json($this->section(1)->id, condition::STATE_PASS, 2);
+        $this->complete($this->pages[0], COMPLETION_COMPLETE_PASS);
+        $this->assertFalse($this->available($pass));
+        $this->complete($this->pages[1], COMPLETION_COMPLETE_PASS);
+        $this->assertTrue($this->available($pass));
+    }
+
     public function test_is_available_untracked_and_missing_sections(): void {
         // Section 2 has no completion-tracked activities: nothing to complete.
         $this->getDataGenerator()->create_module('page', ['course' => $this->course->id, 'section' => 2]);
         $this->assertTrue($this->available(condition::get_json($this->section(2)->id)));
+        $this->assertTrue($this->available(condition::get_json($this->section(2)->id), true));
 
         // A condition without a section, or on a deleted one, does not restrict.
         $this->assertTrue($this->available(condition::get_json(0)));
@@ -266,6 +298,35 @@ final class condition_test extends \advanced_testcase {
         );
     }
 
+    public function test_get_description_callback_value(): void {
+        $modinfo = get_fast_modinfo($this->course);
+        $context = \context_course::instance($this->course->id);
+        $this->assertSame('Topic 1', condition::get_description_callback_value($modinfo, $context, [$this->section(1)->id]));
+        $this->assertSame('(Missing section)', condition::get_description_callback_value($modinfo, $context, ['0']));
+        $this->assertStringStartsWith('<!--', condition::get_description_callback_value($modinfo, $context, ['x']));
+        $this->assertStringStartsWith('<!--', condition::get_description_callback_value($modinfo, $context, [1, 2]));
+    }
+
+    public function test_completion_value_used(): void {
+        \core\plugininfo\mod::enable_plugin('subsection', 1);
+        $generator = $this->getDataGenerator();
+        $subsection = $generator->create_module('subsection', ['course' => $this->course->id, 'section' => 1]);
+        $delegated = get_fast_modinfo($this->course)->get_section_info_by_component('mod_subsection', $subsection->id);
+        $homework = $generator->create_module('page', ['course' => $this->course->id, 'section' => $delegated->section,
+            'completion' => COMPLETION_TRACKING_MANUAL]);
+        $other = $generator->create_module('page', ['course' => $this->course->id, 'section' => 3,
+            'completion' => COMPLETION_TRACKING_MANUAL]);
+        $this->assertFalse(condition::completion_value_used($this->course, $this->pages[0]));
+
+        // Section 2 needs section 1, which includes the subsection.
+        $json = json_encode((object)['op' => '&', 'showc' => [true], 'c' => [condition::get_json($this->section(1)->id)]]);
+        course_update_section($this->course, $this->section(2), ['availability' => $json]);
+        condition::wipe_static_cache();
+        $this->assertTrue(condition::completion_value_used($this->course, $this->pages[0]));
+        $this->assertTrue(condition::completion_value_used($this->course, $homework->cmid));
+        $this->assertFalse(condition::completion_value_used($this->course, $other->cmid));
+    }
+
     public function test_get_section_title(): void {
         \core\plugininfo\mod::enable_plugin('subsection', 1);
         $subsection = $this->getDataGenerator()->create_module('subsection', ['course' => $this->course->id,
@@ -290,12 +351,15 @@ final class condition_test extends \advanced_testcase {
         $page = $this->getDataGenerator()->create_module('page', ['course' => $this->course->id, 'section' => 2,
             'availability' => $json]);
 
+        course_update_section($this->course, $this->section(3), ['availability' => $json]);
+
         // Duplicated within the course, it keeps the section.
         $duplicate = duplicate_module($this->course, get_fast_modinfo($this->course)->get_cm($page->cmid));
         $this->assertEquals($json, $DB->get_field('course_modules', 'availability', ['id' => $duplicate->id]));
 
-        // Imported into another course, both need that course's section 1.
-        $target = $this->getDataGenerator()->create_course(['numsections' => 3, 'enablecompletion' => 1]);
+        // Imported into another course, all three need that course's section 1. The target has no
+        // sections yet: an import into existing sections keeps their settings.
+        $target = $this->getDataGenerator()->create_course(['numsections' => 0, 'enablecompletion' => 1]);
         $bc = new \backup_controller(
             \backup::TYPE_1COURSE,
             $this->course->id,
@@ -326,6 +390,7 @@ final class condition_test extends \advanced_testcase {
             [$target->id]
         );
         $this->assertCount(2, $restored);
+        $restored[] = get_fast_modinfo($target)->get_section_info(3)->availability;
         foreach ($restored as $restoredjson) {
             $this->assertEquals(get_fast_modinfo($target)->get_section_info(1)->id, json_decode($restoredjson)->c[0]->id);
         }

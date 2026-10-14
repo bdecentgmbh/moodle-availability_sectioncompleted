@@ -24,6 +24,10 @@
 
 namespace availability_sectioncompleted;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once($CFG->libdir . '/completionlib.php');
+
 /**
  * Front-end class.
  *
@@ -136,9 +140,14 @@ class frontend extends \core_availability\frontend {
         }
 
         $options = [];
-        if ($top && $top->section > 0) {
-            $previous = $modinfo->get_section_info($top->section - 1);
-            $count = $previous ? count(condition::get_tracked_cms($modinfo, $previous, $completion)) : 0;
+        // The previous section; subsections can be numbered in between.
+        $previous = null;
+        for ($num = $top ? $top->section - 1 : -1; $num >= 0 && !$previous; $num--) {
+            $candidate = $modinfo->get_section_info($num);
+            $previous = $candidate && empty($candidate->component) ? $candidate : null;
+        }
+        if ($previous) {
+            $count = count(condition::get_tracked_cms($modinfo, $previous, $completion));
             if ($count && empty($excluded[$previous->id]) && $previous->uservisible) {
                 $options[] = (object)[
                     'id' => (int)$previous->id,

@@ -22,7 +22,7 @@ Installation
 ------------
 
 Install the plugin like any other plugin to folder
-/availability/condition/sectioncompleted
+/availability/condition/sectioncompleted (on Moodle 5.1 and later: /public/availability/condition/sectioncompleted)
 
 See http://docs.moodle.org/en/Installing_plugins for details on installing Moodle plugins
 
@@ -40,7 +40,7 @@ Teachers (and other users with editing rights) can add the "Section completion" 
 
 The activities in a section's subsections count for that section. A subsection on its own only counts its own activities. A section without completion-tracked activities, or a section that was deleted, does not restrict anything.
 
-Students who do not meet the restriction see how many activities count so far, for example "Section 1 completed. (1 of 3 so far)".
+Students who do not meet the restriction see how many activities count so far, for example "Section 1 completed. (1 of 3 so far)". When they mark an activity of the section as done, the course page reloads, so that what it unlocks shows up.
 
 If you want to learn more about using availability plugins in Moodle, please see https://docs.moodle.org/en/Restrict_access.
 

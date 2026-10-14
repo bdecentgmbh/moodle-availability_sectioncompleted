@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Privacy provider.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
