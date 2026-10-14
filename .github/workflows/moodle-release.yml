@@ -45,6 +45,7 @@ jobs:
       tag: ${{ steps.check.outputs.tag }}
       release: ${{ steps.check.outputs.release }}
       notes: ${{ steps.notes.outputs.notes }}
+      marketplace_notes: ${{ steps.notes.outputs.marketplace }}
     steps:
       - name: Check out the tag
         uses: actions/checkout@v4
@@ -105,6 +106,12 @@ jobs:
             echo "notes<<${DELIMITER}"
             cat notes.md
             echo "${DELIMITER}"
+            # The pinned Moodle HQ workflow sends the notes with curl -F, which cuts them at the
+            # first ";" unless they are quoted, so they are quoted with \ and " escaped. Remove
+            # this when updating the pin to a revision that sends them with --form-string.
+            echo "marketplace<<${DELIMITER}"
+            printf '"%s"\n' "$(sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' notes.md)"
+            echo "${DELIMITER}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Wait for Moodle Plugin CI on the tagged commit
@@ -152,7 +159,7 @@ jobs:
     uses: moodlehq/moodle-plugin-release/.github/workflows/moodle-release.yml@4467fd51a0e7f4bcda665eb2f8fb00365d10a39d
     with:
       tag: ${{ needs.prepare.outputs.tag }}
-      release_notes: ${{ needs.prepare.outputs.notes }}
+      release_notes: ${{ needs.prepare.outputs.marketplace_notes }}
     secrets:
       MOODLE_MARKETPLACE_TOKEN: ${{ secrets.MOODLE_MARKETPLACE_TOKEN }}
 
