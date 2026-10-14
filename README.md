@@ -101,7 +101,7 @@ Releasing this plugin
 Releases are published from GitHub Actions (.github/workflows/moodle-release.yml) with Moodle HQ's release workflow:
 
 1. Changes are merged into dev, then dev into main with a merge commit. version.php and the CHANGES.md section "## <release> (<version>)" must be updated.
-2. Push a tag "v" followed by $plugin->release on the merge commit, for example v1.2. The workflow checks the tag, waits for Moodle Plugin CI on that commit, publishes the version with the CHANGES.md section as release notes to the Moodle Marketplace and creates the GitHub Release with the ZIP.
+2. Push a tag "v" followed by $plugin->release, optionally with "-r" and a number, on the merge commit, for example v1.2-r1. The workflow checks the tag, waits for Moodle Plugin CI on that commit, publishes the version with the CHANGES.md section as release notes to the Moodle Marketplace and creates the GitHub Release with the ZIP.
 3. Actions › Release to Moodle Marketplace › Run workflow repeats a release or, with "Only check", runs the checks without publishing.
 
 The repository secret MOODLE_MARKETPLACE_TOKEN holds an API token created by a maintainer of the plugin at https://marketplace.moodle.com/account/security.
