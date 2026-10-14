@@ -54,16 +54,13 @@ M.availability_sectioncompleted.form.getString = function(identifier, a) {
 };
 
 /**
- * Fills the minimum select with the numbers the selected section allows.
+ * Gets the number of tracked activities of the selected section.
  *
- * Offers "all" and every smaller number of its tracked activities. A saved number that the
- * section no longer reaches stays available.
- *
- * @method updateMinimum
+ * @method getCount
  * @param {Y.Node} node Condition node
- * @param {Number} value Number to select, 0 for all
+ * @return {Number} Number of activities, 0 if no section is selected
  */
-M.availability_sectioncompleted.form.updateMinimum = function(node, value) {
+M.availability_sectioncompleted.form.getCount = function(node) {
     var sectionid = node.one('select[name=id]').get('value');
     var count = 0;
     Y.each(this.sections, function(section) {
@@ -71,11 +68,31 @@ M.availability_sectioncompleted.form.updateMinimum = function(node, value) {
             count = section.count;
         }
     });
+    return count;
+};
+
+/**
+ * Fills the minimum select with "all" and every smaller number of the section's activities.
+ *
+ * A saved number the section no longer reaches is kept as an extra option.
+ *
+ * @method updateMinimum
+ * @param {Y.Node} node Condition node
+ * @param {Number} value Number to select, 0 for all
+ */
+M.availability_sectioncompleted.form.updateMinimum = function(node, value) {
+    var count = this.getCount(node);
+    var getString = this.getString;
+    var option = function(i) {
+        return '<option value="' + i + '">' + (i === 1 ? getString('option_min1') : getString('option_min', i)) + '</option>';
+    };
 
     var html = '<option value="0">' + this.getString('option_all') + '</option>';
-    for (var i = 1; i < Math.max(count, value + 1); i++) {
-        html += '<option value="' + i + '">' +
-            (i === 1 ? this.getString('option_min1') : this.getString('option_min', i)) + '</option>';
+    for (var i = 1; i < count; i++) {
+        html += option(i);
+    }
+    if (value > 0 && value >= count) {
+        html += option(value);
     }
     var select = node.one('select[name=m]');
     select.set('innerHTML', html);
@@ -120,10 +137,11 @@ M.availability_sectioncompleted.form.getNode = function(json) {
         M.availability_sectioncompleted.form.addedEvents = true;
         var root = Y.one('.availability-field');
         root.delegate('change', function(e) {
-            // Another section offers other numbers; keep the chosen one where possible.
+            // Another section offers other numbers: keep the chosen one if the section has more activities.
+            var form = M.availability_sectioncompleted.form;
             var item = e.currentTarget.ancestor('.availability_sectioncompleted');
             var minimum = parseInt(item.one('select[name=m]').get('value'), 10) || 0;
-            M.availability_sectioncompleted.form.updateMinimum(item, minimum);
+            form.updateMinimum(item, minimum < form.getCount(item) ? minimum : 0);
         }, '.availability_sectioncompleted select[name=id]');
         root.delegate('change', function() {
             M.core_availability.form.update();

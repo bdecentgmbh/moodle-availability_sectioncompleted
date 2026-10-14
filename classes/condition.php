@@ -49,6 +49,12 @@ class condition extends \core_availability\condition {
     /** An activity counts when it is complete with a fail grade (COMPLETION_COMPLETE_FAIL). */
     const STATE_FAIL = 'fail';
 
+    /** Highest minimum number of activities; the form offers one option per number. */
+    const MAX_MIN = 1000;
+
+    /** @var array Section ids that conditions in the course depend on, by course id */
+    protected static $sectionsused = [];
+
     /** @var int ID of the section (course_sections.id) whose activities count, 0 if none. */
     protected $sectionid;
 
@@ -86,7 +92,7 @@ class condition extends \core_availability\condition {
 
         if (!property_exists($structure, 'm')) {
             $this->min = 0;
-        } else if (is_int($structure->m) && $structure->m >= 0) {
+        } else if (is_int($structure->m) && $structure->m >= 0 && $structure->m <= self::MAX_MIN) {
             $this->min = $structure->m;
         } else {
             throw new \coding_exception('Invalid ->m for section completion condition');
@@ -167,17 +173,17 @@ class condition extends \core_availability\condition {
     public function is_available($not, \core_availability\info $info, $grabthelot, $userid) {
         $this->progress = null;
         $modinfo = $info->get_modinfo();
+        $completion = new \completion_info($modinfo->get_course());
         $section = $this->sectionid ? $modinfo->get_section_info_by_id($this->sectionid) : null;
-        if (!$section) {
-            // A condition on a missing section does not restrict anything.
+        $tracked = $section ? self::get_tracked_cms($modinfo, $section, $completion) : [];
+        if (!$tracked) {
+            // A missing section, or one without completion-tracked activities, does not restrict anything.
             return true;
         }
 
-        $completion = new \completion_info($modinfo->get_course());
-        $tracked = self::get_tracked_cms($modinfo, $section, $completion);
         $count = 0;
-        foreach ($tracked as $cm) {
-            if ($this->counts($completion->get_data($cm, $grabthelot, $userid)->completionstate)) {
+        foreach ($this->get_states($completion, $tracked, $grabthelot, (int)$userid) as $state) {
+            if ($this->counts($state)) {
                 $count++;
             }
         }
@@ -187,6 +193,42 @@ class condition extends \core_availability\condition {
         $required = $this->min ? min($this->min, count($tracked)) : count($tracked);
         $allow = $count >= $required;
         return $not ? !$allow : $allow;
+    }
+
+    /**
+     * Gets the completion states of a user in activities.
+     *
+     * The current user's states come from the completion cache. Other users' states (cron tasks,
+     * reports) are not cached, and completion_info::get_data() would also load grades and custom
+     * rule states for every activity, so they are read in one query.
+     *
+     * @param \completion_info $completion Completion info of the course
+     * @param \cm_info[] $cms The activities
+     * @param bool $grabthelot Whether to load the current user's states for the whole course at once
+     * @param int $userid User ID
+     * @return int[] One of the COMPLETION_ constants for each activity
+     */
+    protected function get_states(\completion_info $completion, array $cms, bool $grabthelot, int $userid): array {
+        global $DB, $USER;
+
+        // A completion reset keeps the viewed record, for which core returns no state.
+        if ($userid == $USER->id) {
+            return array_map(function (\cm_info $cm) use ($completion, $grabthelot, $userid): int {
+                return (int)($completion->get_data($cm, $grabthelot, $userid)->completionstate ?? COMPLETION_INCOMPLETE);
+            }, $cms);
+        }
+
+        $cmids = array_map(fn(\cm_info $cm): int => (int)$cm->id, $cms);
+        [$insql, $params] = $DB->get_in_or_equal($cmids, SQL_PARAMS_NAMED);
+        $params['userid'] = $userid;
+        $states = $DB->get_records_select_menu(
+            'course_modules_completion',
+            "userid = :userid AND coursemoduleid $insql",
+            $params,
+            '',
+            'coursemoduleid, completionstate'
+        );
+        return array_map(fn(int $cmid): int => (int)($states[$cmid] ?? COMPLETION_INCOMPLETE), $cmids);
     }
 
     /**
@@ -275,6 +317,56 @@ class condition extends \core_availability\condition {
      */
     public function is_applied_to_user_lists() {
         return false;
+    }
+
+    /**
+     * Whether the completion of an activity affects the availability of other items.
+     *
+     * Core then reloads the course page when the user marks the activity complete, so that items
+     * unlocked by it show up.
+     *
+     * @param \stdClass $course Moodle course object
+     * @param int $cmid Course-module id
+     * @return bool True if a section completion condition depends on the activity's section
+     */
+    public static function completion_value_used($course, $cmid): bool {
+        if (!array_key_exists($course->id, self::$sectionsused)) {
+            $modinfo = get_fast_modinfo($course);
+            $infos = [];
+            foreach ($modinfo->cms as $othercm) {
+                if (!is_null($othercm->availability)) {
+                    $infos[] = new \core_availability\info_module($othercm);
+                }
+            }
+            foreach ($modinfo->get_section_info_all() as $section) {
+                if (!is_null($section->availability)) {
+                    $infos[] = new \core_availability\info_section($section);
+                }
+            }
+            self::$sectionsused[$course->id] = [];
+            foreach ($infos as $info) {
+                foreach ($info->get_availability_tree()->get_all_children(self::class) as $condition) {
+                    self::$sectionsused[$course->id][$condition->sectionid] = true;
+                }
+            }
+        }
+
+        $modinfo = get_fast_modinfo($course);
+        $cm = $modinfo->cms[$cmid] ?? null;
+        $section = $cm ? $modinfo->get_section_info_by_id($cm->section) : null;
+        if (!$section) {
+            return false;
+        }
+        $parent = self::get_parent_section($modinfo, $section);
+        return isset(self::$sectionsused[$course->id][$section->id]) ||
+            ($parent && isset(self::$sectionsused[$course->id][$parent->id]));
+    }
+
+    /**
+     * Wipes the static cache of sections used in conditions, for unit tests.
+     */
+    public static function wipe_static_cache(): void {
+        self::$sectionsused = [];
     }
 
     /**
@@ -368,7 +460,8 @@ class condition extends \core_availability\condition {
             if ((string)$section->name !== '') {
                 return format_string($section->name, true, ['context' => $context]);
             }
-            return $format->get_section_name($section);
+            // Formats without a section name string return an empty name.
+            return $format->get_section_name($section) ?: get_string('section') . ' ' . $section->section;
         };
 
         $parent = self::get_parent_section($modinfo, $section);
