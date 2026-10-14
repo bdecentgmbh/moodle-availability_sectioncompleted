@@ -15,33 +15,27 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Tests for the privacy provider.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace availability_sectioncompleted;
-use core_privacy\tests\provider_testcase;
+namespace availability_sectioncompleted\privacy;
 
+#[\PHPUnit\Framework\Attributes\CoversClass(provider::class)]
 /**
- * Unit tests for the sectioncompleted condition.
+ * Tests for the privacy provider.
  *
- * @package   availability_sectioncompleted
- * @copyright  2021 bdecent gmbh <https://bdecent.de>
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers \availability_sectioncompleted\privacy\provider
  */
-class availability_sectioncompleted_privacy_testcase extends provider_testcase {
-
-    /**
-     * Test returning metadata
-     * @return void
-     */
-    public function test_get_metadata() {
-        $collection = new \core_privacy\local\metadata\collection('availability_sectioncompleted');
-        $reason = \availability_sectioncompleted\privacy\provider::get_reason($collection);
-        $this->assertEquals($reason, 'privacy:metadata');
-        $this->assertStringContainsString('does not store', get_string($reason, 'availability_sectioncompleted'));
+final class provider_test extends \core_privacy\tests\provider_testcase {
+    public function test_get_reason(): void {
+        $this->assertSame('privacy:metadata', provider::get_reason());
+        $this->assertStringContainsString(
+            'does not store any personal data',
+            get_string(provider::get_reason(), 'availability_sectioncompleted')
+        );
     }
 }

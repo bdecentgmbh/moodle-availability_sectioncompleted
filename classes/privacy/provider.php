@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Privacy provider.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
@@ -32,7 +32,6 @@ namespace availability_sectioncompleted\privacy;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class provider implements \core_privacy\local\metadata\null_provider {
-
     /**
      * Get the language string identifier with the component's language
      * file to explain why this plugin stores no data.
