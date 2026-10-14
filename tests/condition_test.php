@@ -354,7 +354,12 @@ final class condition_test extends \advanced_testcase {
         course_update_section($this->course, $this->section(3), ['availability' => $json]);
 
         // Duplicated within the course, it keeps the section.
-        $duplicate = duplicate_module($this->course, get_fast_modinfo($this->course)->get_cm($page->cmid));
+        if (method_exists(\core_courseformat\local\cmactions::class, 'duplicate')) {
+            // Moodle 5.2 and later.
+            $duplicate = \core_courseformat\formatactions::cm($this->course)->duplicate($page->cmid);
+        } else {
+            $duplicate = duplicate_module($this->course, get_fast_modinfo($this->course)->get_cm($page->cmid));
+        }
         $this->assertEquals($json, $DB->get_field('course_modules', 'availability', ['id' => $duplicate->id]));
 
         // Imported into another course, all three need that course's section 1. The target has no
