@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Version details.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'availability_sectioncompleted';
-$plugin->version = 2025032401;
-$plugin->release = 'Version 1.1';
-$plugin->requires = 2020061500;
+$plugin->version = 2026101400;
+$plugin->release = '1.2';
+$plugin->requires = 2024100700;
 $plugin->maturity = MATURITY_STABLE;
-$plugin->supported = [39, 405];
+$plugin->supported = [405, 503];

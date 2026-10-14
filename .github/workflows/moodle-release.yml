@@ -1,0 +1,182 @@
+name: Release to Moodle Marketplace
+
+# Publishes a tagged version to the Moodle Marketplace (https://marketplace.moodle.com/) and
+# creates the matching GitHub Release with the ZIP.
+#
+# Release: merge dev into main, then push a tag "v<release>" on main, e.g. v1.2 for
+# $plugin->release = '1.2'. Re-run or dry-run: Actions > Release to Moodle Marketplace >
+# Run workflow, with the tag. A dry run does every check and skips the publishing.
+#
+# Before anything is published, the tag must be on main, match $plugin->release in version.php
+# and have a section "## <release> (<version>)" in CHANGES.md, and "Moodle Plugin CI" must have
+# passed on the tagged commit (the job waits for it up to 45 minutes).
+#
+# Needs the repository secret MOODLE_MARKETPLACE_TOKEN: an API token created at
+# https://marketplace.moodle.com/account/security by a maintainer of the plugin.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.2)'
+        required: true
+      dry_run:
+        description: 'Only check, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Check the release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      release: ${{ steps.check.outputs.release }}
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Check tag, version.php and branch
+        id: check
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::${TAG} is not a tag."
+            exit 1
+          fi
+          VERSIONPHP='define("MOODLE_INTERNAL", 1); define("MATURITY_STABLE", 200); $plugin = new stdClass(); include "version.php";'
+          RELEASE=$(php -r "${VERSIONPHP} echo \$plugin->release;")
+          VERSION=$(php -r "${VERSIONPHP} echo \$plugin->version;")
+          if [ "v${RELEASE}" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} does not match \$plugin->release '${RELEASE}' in version.php (expected v${RELEASE})."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "${TAG}^{commit}" origin/main; then
+            echo "::error::${TAG} is not on main. Merge dev into main and tag the merge commit."
+            exit 1
+          fi
+          echo "Releasing ${RELEASE} (${VERSION}) from $(git rev-parse --short "${TAG}^{commit}")."
+          {
+            echo "tag=${TAG}"
+            echo "release=${RELEASE}"
+            echo "sha=$(git rev-parse "${TAG}^{commit}")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Take the release notes from CHANGES.md
+        id: notes
+        env:
+          RELEASE: ${{ steps.check.outputs.release }}
+        run: |
+          set -euo pipefail
+          # The section from "## <release> (" to the next "## " heading, without its heading.
+          awk -v heading="## ${RELEASE} (" 'index($0, heading) == 1 {found = 1; next} found && /^## / {exit} found' \
+            CHANGES.md | sed -e '/./,$!d' > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGES.md has no section \"## ${RELEASE} (...)\"."
+            exit 1
+          fi
+          cat notes.md
+          DELIMITER="notes-$(openssl rand -hex 16)"
+          {
+            echo "notes<<${DELIMITER}"
+            cat notes.md
+            echo "${DELIMITER}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Moodle Plugin CI on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.check.outputs.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            RUN=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/moodle-ci.yml/runs?head_sha=${SHA}&per_page=1" \
+              --jq '.workflow_runs[0] | select(.) | "\(.status) \(.conclusion) \(.html_url)"')
+            read -r STATUS CONCLUSION URL <<< "${RUN:-none none none}"
+            if [ "${STATUS}" = "none" ]; then
+              # CI starts within seconds of a push; a commit without a run after 5 minutes never had one.
+              if [ "${attempt}" -ge 10 ]; then
+                echo "::error::Moodle Plugin CI never ran on ${SHA}. Tag a commit of main that CI has tested."
+                exit 1
+              fi
+              echo "No Moodle Plugin CI run on ${SHA} yet, waiting..."
+              sleep 30
+              continue
+            fi
+            if [ "${STATUS}" = "completed" ]; then
+              if [ "${CONCLUSION}" = "success" ]; then
+                echo "Moodle Plugin CI passed: ${URL}"
+                exit 0
+              fi
+              echo "::error::Moodle Plugin CI ended with ${CONCLUSION}: ${URL}"
+              exit 1
+            fi
+            echo "Moodle Plugin CI: ${STATUS} (${URL}), waiting..."
+            sleep 30
+          done
+          echo "::error::Moodle Plugin CI did not pass on ${SHA} within 45 minutes. Run this workflow again when it has."
+          exit 1
+
+  marketplace:
+    name: Publish to Moodle Marketplace
+    needs: prepare
+    if: ${{ !inputs.dry_run }}
+    permissions:
+      contents: read
+    # Moodle HQ's reusable workflow (revision 2026091801), pinned because it receives the token.
+    # Update: https://github.com/moodlehq/moodle-plugin-release/commits/main
+    uses: moodlehq/moodle-plugin-release/.github/workflows/moodle-release.yml@4467fd51a0e7f4bcda665eb2f8fb00365d10a39d
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+      release_notes: ${{ needs.prepare.outputs.notes }}
+    secrets:
+      MOODLE_MARKETPLACE_TOKEN: ${{ secrets.MOODLE_MARKETPLACE_TOKEN }}
+
+  github-release:
+    name: Create the GitHub Release
+    needs: [prepare, marketplace]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Create the release with the ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE: ${{ needs.prepare.outputs.release }}
+          NOTES: ${{ needs.prepare.outputs.notes }}
+        run: |
+          set -euo pipefail
+          ZIP="availability_sectioncompleted_${RELEASE}.zip"
+          # .gitattributes keeps .github and other repository files out of the archive.
+          git archive --format=zip --prefix=sectioncompleted/ -o "${ZIP}" HEAD
+          printf '%s\n' "${NOTES}" > notes.md
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" "${ZIP}" --clobber
+          else
+            gh release create "${TAG}" "${ZIP}" --verify-tag --title "${RELEASE}" --notes-file notes.md
+          fi

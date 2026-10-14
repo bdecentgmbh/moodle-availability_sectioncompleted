@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details
+ * Front-end class.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
@@ -24,110 +24,174 @@
 
 namespace availability_sectioncompleted;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once($CFG->libdir . '/completionlib.php');
+
 /**
- * Availability role - Frontend form class
+ * Front-end class.
  *
  * @package    availability_sectioncompleted
  * @copyright  2021 bdecent gmbh <https://bdecent.de>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class frontend extends \core_availability\frontend {
+    /** @var array Cached init parameters */
+    protected $cacheparams = [];
+
+    /** @var string IDs of the course, activity and section the parameters were cached for */
+    protected $cachekey = '';
 
     /**
-     * Get the initial parameters needed for JavaScript.
+     * Gets the string identifiers the form needs.
      *
-     * @param \stdClass          $course
-     * @param \cm_info|null      $cm
-     * @param \section_info|null $section
-     *
-     * @return array
+     * @return array Array of required string identifiers
      */
-    protected function get_javascript_init_params($course, \cm_info $cm = null, \section_info $section = null) {
-        global $PAGE;
-        $jsarray = [];
-        $context = \context_course::instance($course->id);
-
-        $format = course_get_format($course->id);
-        $course = $format->get_course(); // Needed to have numsections property available.
-        if (!$format->uses_sections()) {
-            return [];
-        }
-        if (($format instanceof format_digidagotabs) || ($format instanceof format_horizontaltabs)) {
-            // Don't show the menu in a tab.
-                return [];
-            // Only show the block inside activities of courses.
-        } else {
-            $coursesections = $format->get_sections();
-        }
-        if (empty($coursesections)) {
-            return [];
-        }
-        if ($section != null) {
-            if (isset($coursesections[$section->section - 1])) {
-                $presection = $coursesections[$section->section - 1];
-                $jsarray[] = (object) [
-                    'id' => $presection->id,
-                    'name' => get_string('previoussection'),
-                ];
-            }
-        } else if ($cm != null) {
-            $cmsection = $cm->get_section_info();
-            if (isset($coursesections[$cmsection->section - 1])) {
-                $presection = $coursesections[$cmsection->section - 1];
-                $jsarray[] = (object) [
-                    'id' => $presection->id,
-                    'name' => get_string('previoussection'),
-                ];
-            }
-        } else if ($sectionnum = optional_param('section', 0, PARAM_INT)) {
-            if (isset($coursesections[$sectionnum - 1])) {
-                $presection = $coursesections[$sectionnum - 1];
-                $jsarray[] = (object) [
-                    'id' => $presection->id,
-                    'name' => get_string('previoussection'),
-                ];
-            }
-        }
-
-        foreach ($coursesections as $section) {
-
-            if (@$cm->section == $section->id) {
-                continue;
-            }
-
-            if (!$section->uservisible) {
-                continue;
-            }
-
-            if (!empty($section->name)) {
-                $title = format_string(
-                        $section->name,
-                        true,
-                        ['context' => $context]
-                );
-            } else {
-                $title = $format->get_section_name($section);
-            }
-
-            $jsarray[] = (object) [
-                'id' => $section->id,
-                'name' => $title,
-            ];
-        }
-        return [$jsarray];
+    protected function get_javascript_strings() {
+        return ['label_min', 'label_state', 'option_all', 'option_complete', 'option_fail', 'option_min', 'option_min1',
+            'option_pass'];
     }
 
     /**
-     * Decides whether this plugin should be available in a given course. The plugin can do this depending on course or
-     * system settings. Default returns true.
+     * Gets the sections to choose from and the Moodle branch for the form.
      *
-     * @param \stdClass          $course
-     * @param \cm_info|null      $cm
-     * @param \section_info|null $section
-     *
-     * @return bool
+     * @param \stdClass $course Course object
+     * @param \cm_info|null $cm Course-module currently being edited (null if none)
+     * @param \section_info|null $section Section currently being edited (null if none)
+     * @return array Array of parameters for the JavaScript function
      */
-    protected function allow_add($course, \cm_info $cm = null, \section_info $section = null) {
-        return true;
+    protected function get_javascript_init_params($course, ?\cm_info $cm = null, ?\section_info $section = null) {
+        global $CFG;
+
+        // Called twice per page (once from allow_add), so the sections are cached.
+        $cachekey = $course->id . ',' . ($cm ? $cm->id : '') . ',' . ($section ? $section->id : '');
+        if ($cachekey !== $this->cachekey) {
+            $this->cachekey = $cachekey;
+            $this->cacheparams = [$this->get_sections($course, $cm, $section), (int)$CFG->branch];
+        }
+        return $this->cacheparams;
+    }
+
+    /**
+     * Offers the condition when the course tracks completion and has a section to choose.
+     *
+     * @param \stdClass $course Course object
+     * @param \cm_info|null $cm Course-module currently being edited (null if none)
+     * @param \section_info|null $section Section currently being edited (null if none)
+     * @return bool True if the condition can be added
+     */
+    protected function allow_add($course, ?\cm_info $cm = null, ?\section_info $section = null) {
+        $completion = new \completion_info($course);
+        if (!$completion->is_enabled()) {
+            return false;
+        }
+        return !empty($this->get_javascript_init_params($course, $cm, $section)[0]);
+    }
+
+    /**
+     * Gets the sections that have completion-tracked activities, in course order.
+     *
+     * Subsections follow their parent section. Sections the restricted item belongs to are left
+     * out: their activities could not be completed while the item is locked.
+     *
+     * @param \stdClass $course Course object
+     * @param \cm_info|null $cm Course-module currently being edited (null if none)
+     * @param \section_info|null $section Section currently being edited (null if none)
+     * @return \stdClass[] Objects with the section id, formatted name and number of tracked activities
+     */
+    protected function get_sections($course, ?\cm_info $cm, ?\section_info $section): array {
+        global $PAGE;
+
+        $format = course_get_format($course);
+        if (!$format->uses_sections()) {
+            return [];
+        }
+        $modinfo = get_fast_modinfo($course);
+        $completion = new \completion_info($course);
+
+        // Where the restricted item is: the edited section, the edited activity's section, or the
+        // section a new activity is added to (course/modedit.php puts its number into the page URL).
+        $current = $section;
+        if (!$current && $cm) {
+            $current = $cm->get_section_info();
+        }
+        if (!$current && $PAGE->has_set_url() && is_number($PAGE->url->get_param('section'))) {
+            $current = $modinfo->get_section_info((int)$PAGE->url->get_param('section'));
+        }
+
+        $excluded = [];
+        $top = null;
+        if ($current) {
+            $parent = condition::get_parent_section($modinfo, $current);
+            $top = $parent ?? $current;
+            $excluded[$current->id] = true;
+            if ($parent) {
+                $excluded[$parent->id] = true;
+            }
+            if ($section) {
+                // A restricted section also locks its subsections.
+                foreach ($this->get_subsections($modinfo, $section) as $subsection) {
+                    $excluded[$subsection->id] = true;
+                }
+            }
+        }
+        if ($cm && ($delegated = condition::get_subsection($modinfo, $cm))) {
+            $excluded[$delegated->id] = true;
+        }
+
+        $options = [];
+        // The previous section; subsections can be numbered in between.
+        $previous = null;
+        for ($num = $top ? $top->section - 1 : -1; $num >= 0 && !$previous; $num--) {
+            $candidate = $modinfo->get_section_info($num);
+            $previous = $candidate && empty($candidate->component) ? $candidate : null;
+        }
+        if ($previous) {
+            $count = count(condition::get_tracked_cms($modinfo, $previous, $completion));
+            if ($count && empty($excluded[$previous->id]) && $previous->uservisible) {
+                $options[] = (object)[
+                    'id' => (int)$previous->id,
+                    'name' => get_string('previoussection', 'availability_sectioncompleted'),
+                    'count' => $count,
+                ];
+            }
+        }
+
+        foreach ($modinfo->get_section_info_all() as $listed) {
+            if (!empty($listed->component)) {
+                continue;
+            }
+            foreach (array_merge([$listed], $this->get_subsections($modinfo, $listed)) as $candidate) {
+                if (!empty($excluded[$candidate->id]) || !$candidate->uservisible) {
+                    continue;
+                }
+                $count = count(condition::get_tracked_cms($modinfo, $candidate, $completion));
+                if ($count) {
+                    $options[] = (object)[
+                        'id' => (int)$candidate->id,
+                        'name' => condition::get_section_title($modinfo, $candidate),
+                        'count' => $count,
+                    ];
+                }
+            }
+        }
+        return $options;
+    }
+
+    /**
+     * Gets the subsections of a section, in course order.
+     *
+     * @param \course_modinfo $modinfo Modinfo of the course
+     * @param \section_info $section The section
+     * @return \section_info[] The subsections
+     */
+    protected function get_subsections(\course_modinfo $modinfo, \section_info $section): array {
+        $subsections = [];
+        foreach ($modinfo->sections[$section->section] ?? [] as $cmid) {
+            if (isset($modinfo->cms[$cmid]) && ($subsection = condition::get_subsection($modinfo, $modinfo->cms[$cmid]))) {
+                $subsections[] = $subsection;
+            }
+        }
+        return $subsections;
     }
 }
